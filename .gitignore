@@ -1,0 +1,9 @@
+#VS project stuff- Unity generates this anyway.
+*.suo
+*.sln
+*.csproj
+
+#Unity stuff
+Library/*
+Temp/*
+
