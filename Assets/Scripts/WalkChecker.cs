@@ -6,8 +6,7 @@ public class WalkChecker : MonoBehaviour
 {
     class ColliderFace
     {
-        //public Collider collider;
-        //public Vector3 localPosition;
+        public Collider collider;
         public Vector3 position;
         //As this is designed for 2.5d games, only a float is required for rotation (the z axis).
         //Measured in degrees.
@@ -18,8 +17,12 @@ public class WalkChecker : MonoBehaviour
 
     public CharacterController player;
 
-
     List<ColliderFace> walkableFaces;
+    float playerRadius = 0.5f;
+    float playerDiameter = 1.0f;
+
+    [HideInInspector]
+    public int collisionLayerMask;
 
     public void RemoveDebugSurfaces()
     {
@@ -33,6 +36,16 @@ public class WalkChecker : MonoBehaviour
             walkableFaces = new List<ColliderFace>();
         else
             walkableFaces.Clear();
+
+        if (player)
+        {
+            playerRadius = player.radius;
+            playerDiameter = playerRadius * 2.0f;
+        }
+        else
+        {
+            Debug.LogWarning("No player set in the walk checker!");
+        }
 
         //Instantiate(testObject, transform.position, transform.rotation);
         Collider[] colliders = FindObjectsOfType<Collider>();
@@ -117,6 +130,7 @@ public class WalkChecker : MonoBehaviour
                 {
                     //Slope is valid.
                     ColliderFace face = new ColliderFace();
+                    face.collider = a_box;
                     face.rotation = angle * Mathf.Rad2Deg;
                     face.position = colliderPoints[i];
 
@@ -179,29 +193,120 @@ public class WalkChecker : MonoBehaviour
 
     //Checks whether a face is colliding with anything, and either shortens it or splits it into multiple new faces to ensure that the face doesn't cover any area blocked by objects.
     //Returns a list of all non-blocked faces.
+    //Known issue: doesn't account for situations in which the entire area above the face is within a collider.
     List<ColliderFace> CheckCollisionsWithFace(ColliderFace a_face)
     {
         List<ColliderFace> returnFaces = new List<ColliderFace>();
 
-        //Placeholder for logic.
-        returnFaces.Add(a_face);
+        //Get all of the variables necessary for a capsule cast.
+        float faceRot = a_face.rotation * Mathf.Deg2Rad;
+        Vector3 faceEdgeOffset = (a_face.length / 2.0f) * new Vector3(Mathf.Cos(faceRot), Mathf.Sin(faceRot), 0.0f);
+        Vector3 rightMostFacePoint = a_face.position + faceEdgeOffset;
 
-        //TODO: fill in sweep start position, direction, and distance.
-        Vector3 sweepStartPosition = Vector3.zero;
-        Vector3 direction = Vector3.right;
-        float checkDistance = 0.0f;
+        Vector3 rightMostCapsuleBasePoint = rightMostFacePoint + Vector3.up * playerRadius;
+        Vector3 rightMostCapsuleTopPoint = rightMostCapsuleBasePoint + new Vector3(0, player.height - playerDiameter, 0);
+        Vector3 leftMostCapsuleBasePoint = rightMostCapsuleBasePoint - faceEdgeOffset * 2.0f;
+        Vector3 leftMostCapsuleTopPoint = leftMostCapsuleBasePoint + new Vector3(0, player.height - playerDiameter, 0);
 
-        float pointHeight = player.height / 2.0f - player.radius;
-        Vector3 capsuleBasePoint = sweepStartPosition + player.center - new Vector3(0, pointHeight, 0);
-        Vector3 capsuleTopPoint = capsuleBasePoint + new Vector3(0, pointHeight * 2.0f, 0);
+        float checkDistance = faceEdgeOffset.magnitude;
+        Vector3 toRightDirection = faceEdgeOffset/checkDistance;  //Normalizing the direction.
+        checkDistance *= 2.0f;
 
-        RaycastHit[] collisions = Physics.CapsuleCastAll(capsuleBasePoint, capsuleTopPoint, player.radius, direction, checkDistance);
-        foreach (RaycastHit hit in collisions)
+        /*I'm thinking that the best way to determine where to split the object may be to raycast from both sides of the platform- 
+          if a collision occurs, then I can check from the other side to find the other side of the object.
+          The method I'm going to use for doing this is:
+
+            Trace all both ways.
+            if there are more hits in one than the other, then cut from the last impact point to the end in the one with more hits, then remove that hit.
+            flip one of the hit arrays.
+            Now at each index, one hit array will have the left side of an object and the other will have the right side.
+        */
+
+        //TODO: Check if a collision is with the collider that we are checking from, so that it can be ignored.
+        bool colliderDisabled = false;
+        if (a_face.collider.enabled)
         {
-            //TODO: Split the face.
+            a_face.collider.enabled = false;
+            colliderDisabled = true;
         }
 
+        Debug.DrawLine(leftMostCapsuleBasePoint, leftMostCapsuleBasePoint + toRightDirection * checkDistance, Color.cyan, 10000.0f);
+
+        RaycastHit[] leftSideCollisions = Physics.CapsuleCastAll(leftMostCapsuleBasePoint, leftMostCapsuleTopPoint, playerRadius, toRightDirection, checkDistance, collisionLayerMask);
+        RaycastHit[] rightSideCollisions = Physics.CapsuleCastAll(rightMostCapsuleBasePoint, rightMostCapsuleTopPoint, playerRadius, -toRightDirection, checkDistance, collisionLayerMask);
+
+        if (colliderDisabled)
+        {
+            a_face.collider.enabled = true;
+        }
+
+
+        foreach (RaycastHit[] )
+
+
+        if (leftSideCollisions.Length > rightSideCollisions.Length)
+        {
+            //The right side of the platform is inside another collider.
+            //The base point x value is used in further calculations as a way of checking the x-location of the leftmost/rightmost points of the plane, so update it here.
+            rightMostCapsuleBasePoint = new Vector3(leftSideCollisions[leftSideCollisions.Length - 1].point.x, rightMostCapsuleBasePoint.y, rightMostCapsuleBasePoint.z);
+
+            RaycastHit[] newHits = new RaycastHit[leftSideCollisions.Length - 1];
+            Array.Copy(leftSideCollisions, 0, newHits, 0, newHits.Length);
+            leftSideCollisions = newHits;
+        }
+        else if (rightSideCollisions.Length < leftSideCollisions.Length)
+        {
+            //The left side of the platform is inside another collider.
+            //The base point x value is used in further calculations as a way of checking the x-location of the leftmost/rightmost points of the plane, so update it here.
+            leftMostCapsuleBasePoint = new Vector3(rightSideCollisions[rightSideCollisions.Length - 1].point.x, leftMostCapsuleBasePoint.y, leftMostCapsuleBasePoint.z);
+
+            RaycastHit[] newHits = new RaycastHit[rightSideCollisions.Length - 1];
+            Array.Copy(rightSideCollisions, 0, newHits, 0, newHits.Length);
+            rightSideCollisions = newHits;
+        }
+
+        //Reverse so that each index refers to the same object for both arrays.
+        Array.Reverse(rightSideCollisions);
+
+        //Iterate through each lot of collisions, and split the faces for each one.
+        for (int i = -1; i < leftSideCollisions.Length; ++i)
+        {
+            float leftPoint;
+            if (i == -1)    //For the first iteration, start at the left side of the collider face.
+                leftPoint = leftMostCapsuleBasePoint.x;
+            else
+                leftPoint = leftSideCollisions[i].point.x;
+
+            float rightPoint;
+            if (i == leftSideCollisions.Length - 1)     //For the last iteration, end at the right side of the collider face.
+                rightPoint = rightMostCapsuleBasePoint.x;
+            else
+                rightPoint = rightSideCollisions[i + 1].point.x;
+
+            returnFaces.Add(GetFacePortion(a_face, leftPoint, rightPoint));
+        } 
+
         return returnFaces;
+    }
+
+    //Returns a smaller collider face portion created from part of a collider face.
+    ColliderFace GetFacePortion(ColliderFace a_face, float a_leftPoint, float a_rightPoint)
+    {
+        ColliderFace returnFace = new ColliderFace();
+
+        //The new x position should be halfway between a_leftPoint and a_rightPoint, and the dimension should be the difference between leftpoint and rightpoint.
+        //The y position is harder- it's based on the rotation of the face.
+
+        returnFace.length = a_rightPoint - a_leftPoint;
+        returnFace.rotation = a_face.rotation;
+
+        float x = a_leftPoint + (a_rightPoint - a_leftPoint) / 2.0f;
+        float y = a_face.position.y + Mathf.Tan(a_face.rotation * Mathf.Deg2Rad) * x;
+        float z = a_face.position.z;
+
+        returnFace.position = new Vector3(x, y, z);
+
+        return returnFace;
     }
 
     public void OnDrawGizmos()
@@ -213,12 +318,10 @@ public class WalkChecker : MonoBehaviour
             {
                 //For some reason, placing position information in the cube vs the transform matrix behaves differently- might this be doing transforms out of order? TRS v RST or etc.
                 //I think that the x dimension here should likely just be replaced with a 1, to constrain the area highlighted to the plane that the player can move in.
-                Gizmos.matrix = Matrix4x4.TRS(walkableFaces[i].position, Quaternion.Euler(new Vector3(0, 0, walkableFaces[i].rotation)), new Vector3(walkableFaces[i].length, 0.1f, 1.0f));
+                Gizmos.matrix = Matrix4x4.TRS(walkableFaces[i].position, Quaternion.Euler(new Vector3(0, 0, walkableFaces[i].rotation)), new Vector3(walkableFaces[i].length, 0.1f, playerDiameter));
                 Gizmos.DrawCube(new Vector3(0, 0, 0), new Vector3(1, 1, 1));
             }
-
         }
-
     }
 
 }

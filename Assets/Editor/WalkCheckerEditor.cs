@@ -30,8 +30,16 @@ public class WalkCheckerEditor : Editor
     {
         base.OnInspectorGUI();
 
-        EditorGUI.BeginDisabledGroup(disableTimer > 0);
         WalkChecker script = (WalkChecker)target;
+
+        string[] maskOptions = new string[32];
+        for (int i = 0; i < 32; ++i)
+        {
+            maskOptions[i] = i.ToString();
+        }
+        script.collisionLayerMask = EditorGUI.MaskField(EditorGUILayout.GetControlRect(), "Blocking Layers: ", script.collisionLayerMask, maskOptions);
+
+        EditorGUI.BeginDisabledGroup(disableTimer > 0);
         if (GUILayout.Button("Check Walkable Surfaces"))
         {
             disableTimer = disableTime;
