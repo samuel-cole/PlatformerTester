@@ -222,13 +222,15 @@ public class WalkChecker : MonoBehaviour
             Now at each index, one hit array will have the left side of an object and the other will have the right side.
         */
 
-        //TODO: Check if a collision is with the collider that we are checking from, so that it can be ignored.
+        //Remove the walkable surface's collider to prevent self-collision. 
         bool colliderDisabled = false;
         if (a_face.collider.enabled)
         {
             a_face.collider.enabled = false;
             colliderDisabled = true;
         }
+
+        //TODO: handle situations in which both trace points start inside a collider, but not the same collider.
 
         Debug.DrawLine(leftMostCapsuleBasePoint, leftMostCapsuleBasePoint + toRightDirection * checkDistance, Color.cyan, 10000.0f);
 
