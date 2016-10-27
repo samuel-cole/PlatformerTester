@@ -260,29 +260,38 @@ public class WalkChecker : MonoBehaviour
         {
             a_face.collider.enabled = true;
         }
-        
+
         //This should be changed to check if the collision point is (0, 0, 0), rather than using array length, given that capsule casts
         //do not behave as specified in the Unity docs- they return a collision at position (0, 0, 0) for situations in which the start
         //of the trace is in a collider.
-        if (leftSideCollisions.Length > rightSideCollisions.Length)
+        //if (leftSideCollisions.Length > rightSideCollisions.Length)
+        if (rightSideCollisions.Length > 0 && NearlyEqual(rightSideCollisions[0].point, new Vector3(0, 0, 0)))
         {
             //The right side of the platform is inside another collider.
             //The base point x value is used in further calculations as a way of checking the x-location of the leftmost/rightmost points of the plane, so update it here.
-            rightMostCapsuleBasePoint = new Vector3(leftSideCollisions[leftSideCollisions.Length - 1].point.x, rightMostCapsuleBasePoint.y, rightMostCapsuleBasePoint.z);
+            rightMostCapsuleBasePoint = new Vector3(leftSideCollisions[leftSideCollisions.Length - 1].point.x - playerRadius, rightMostCapsuleBasePoint.y, rightMostCapsuleBasePoint.z);
 
             RaycastHit[] newHits = new RaycastHit[leftSideCollisions.Length - 1];
             Array.Copy(leftSideCollisions, 0, newHits, 0, newHits.Length);
             leftSideCollisions = newHits;
+
+            RaycastHit[] newRightHits = new RaycastHit[rightSideCollisions.Length - 1];
+            Array.Copy(rightSideCollisions, 1, newRightHits, 0, newRightHits.Length);
+            rightSideCollisions = newRightHits;
         }
-        else if (rightSideCollisions.Length < leftSideCollisions.Length)
+        else if (leftSideCollisions.Length > 0 && NearlyEqual(leftSideCollisions[0].point, new Vector3(0, 0, 0)))
         {
             //The left side of the platform is inside another collider.
             //The base point x value is used in further calculations as a way of checking the x-location of the leftmost/rightmost points of the plane, so update it here.
-            leftMostCapsuleBasePoint = new Vector3(rightSideCollisions[rightSideCollisions.Length - 1].point.x, leftMostCapsuleBasePoint.y, leftMostCapsuleBasePoint.z);
+            leftMostCapsuleBasePoint = new Vector3(rightSideCollisions[rightSideCollisions.Length - 1].point.x + playerRadius, leftMostCapsuleBasePoint.y, leftMostCapsuleBasePoint.z);
 
             RaycastHit[] newHits = new RaycastHit[rightSideCollisions.Length - 1];
             Array.Copy(rightSideCollisions, 0, newHits, 0, newHits.Length);
             rightSideCollisions = newHits;
+
+            RaycastHit[] newLeftHits = new RaycastHit[leftSideCollisions.Length - 1];
+            Array.Copy(leftSideCollisions, 1, newLeftHits, 0, newLeftHits.Length);
+            leftSideCollisions = newLeftHits;
         }
 
         //Reverse so that each index refers to the same object for both arrays.
@@ -356,6 +365,14 @@ public class WalkChecker : MonoBehaviour
                 Gizmos.DrawLine(DEBUG_lineStarts[i], DEBUG_lineEnds[i]);
             }
         }
+    }
+
+    //Fix for float equality issues.
+    bool NearlyEqual(Vector3 a_vec1, Vector3 a_vec2)
+    {
+        if ((a_vec1 - a_vec2).sqrMagnitude < 0.01f)
+            return true;
+        return false;
     }
 
 }
