@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 public class WalkChecker : MonoBehaviour
 {
-    class ColliderFace
+    public class ColliderFace
     {
         public Collider collider;
         public Vector3 position;
@@ -17,21 +17,41 @@ public class WalkChecker : MonoBehaviour
 
     public CharacterController player;
 
-    List<ColliderFace> walkableFaces;
+    public List<ColliderFace> walkableFaces { get; private set; }
     float playerRadius = 0.5f;
-    float playerDiameter = 1.0f;
+    public float playerDiameter { get; private set; }
 
     [HideInInspector]
     public int collisionLayerMask;
+
+    List<Vector3> DEBUG_lineStarts = null;
+    List<Vector3> DEBUG_lineEnds = null;
 
     public void RemoveDebugSurfaces()
     {
         if (walkableFaces != null)
             walkableFaces.Clear();
+
+        if (DEBUG_lineStarts != null)
+        {
+            DEBUG_lineStarts.Clear();
+            DEBUG_lineEnds.Clear();
+        }
     }
 
     public void DisplayDebugSurfaces()
     {
+        if (DEBUG_lineStarts == null)
+        {
+            DEBUG_lineStarts = new List<Vector3>();
+            DEBUG_lineEnds = new List<Vector3>();
+        }
+        else
+        {
+            DEBUG_lineStarts.Clear();
+            DEBUG_lineEnds.Clear();
+        }
+
         if (walkableFaces == null)
             walkableFaces = new List<ColliderFace>();
         else
@@ -44,7 +64,8 @@ public class WalkChecker : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("No player set in the walk checker!");
+            Debug.LogError("No player set in the walk checker!");
+            return;
         }
 
         //Instantiate(testObject, transform.position, transform.rotation);
@@ -230,10 +251,8 @@ public class WalkChecker : MonoBehaviour
             colliderDisabled = true;
         }
 
-        //TODO: handle situations in which both trace points start inside a collider, but not the same collider.
-
-        Debug.DrawLine(leftMostCapsuleBasePoint, leftMostCapsuleBasePoint + toRightDirection * checkDistance, Color.cyan, 10000.0f);
-
+        //Note: contrary to what the Unity documentation says, capsule casts seem to return a collision at position (0,0,0)
+        //in situations in which the beginning of the capsule cast is within a collider.
         RaycastHit[] leftSideCollisions = Physics.CapsuleCastAll(leftMostCapsuleBasePoint, leftMostCapsuleTopPoint, playerRadius, toRightDirection, checkDistance, collisionLayerMask);
         RaycastHit[] rightSideCollisions = Physics.CapsuleCastAll(rightMostCapsuleBasePoint, rightMostCapsuleTopPoint, playerRadius, -toRightDirection, checkDistance, collisionLayerMask);
 
@@ -241,11 +260,10 @@ public class WalkChecker : MonoBehaviour
         {
             a_face.collider.enabled = true;
         }
-
-
-        foreach (RaycastHit[] )
-
-
+        
+        //This should be changed to check if the collision point is (0, 0, 0), rather than using array length, given that capsule casts
+        //do not behave as specified in the Unity docs- they return a collision at position (0, 0, 0) for situations in which the start
+        //of the trace is in a collider.
         if (leftSideCollisions.Length > rightSideCollisions.Length)
         {
             //The right side of the platform is inside another collider.
@@ -277,13 +295,13 @@ public class WalkChecker : MonoBehaviour
             if (i == -1)    //For the first iteration, start at the left side of the collider face.
                 leftPoint = leftMostCapsuleBasePoint.x;
             else
-                leftPoint = leftSideCollisions[i].point.x;
-
+                leftPoint = rightSideCollisions[i].point.x + playerRadius;
+            
             float rightPoint;
             if (i == leftSideCollisions.Length - 1)     //For the last iteration, end at the right side of the collider face.
                 rightPoint = rightMostCapsuleBasePoint.x;
             else
-                rightPoint = rightSideCollisions[i + 1].point.x;
+                rightPoint = leftSideCollisions[i + 1].point.x - playerRadius;
 
             returnFaces.Add(GetFacePortion(a_face, leftPoint, rightPoint));
         } 
@@ -298,12 +316,16 @@ public class WalkChecker : MonoBehaviour
 
         //The new x position should be halfway between a_leftPoint and a_rightPoint, and the dimension should be the difference between leftpoint and rightpoint.
         //The y position is harder- it's based on the rotation of the face.
-
-        returnFace.length = a_rightPoint - a_leftPoint;
         returnFace.rotation = a_face.rotation;
 
+        float tan = Mathf.Tan(a_face.rotation * Mathf.Deg2Rad);
+        float rightY = a_face.position.y + tan * (a_rightPoint - a_face.position.x);
+        float leftY = a_face.position.y + tan * (a_leftPoint - a_face.position.x); //Not too sure about this line, haven't really thought it through.
+
+        returnFace.length = new Vector2(a_rightPoint - a_leftPoint, rightY - leftY).magnitude;
+
         float x = a_leftPoint + (a_rightPoint - a_leftPoint) / 2.0f;
-        float y = a_face.position.y + Mathf.Tan(a_face.rotation * Mathf.Deg2Rad) * x;
+        float y = leftY + (rightY - leftY) / 2.0f;
         float z = a_face.position.z;
 
         returnFace.position = new Vector3(x, y, z);
@@ -322,6 +344,16 @@ public class WalkChecker : MonoBehaviour
                 //I think that the x dimension here should likely just be replaced with a 1, to constrain the area highlighted to the plane that the player can move in.
                 Gizmos.matrix = Matrix4x4.TRS(walkableFaces[i].position, Quaternion.Euler(new Vector3(0, 0, walkableFaces[i].rotation)), new Vector3(walkableFaces[i].length, 0.1f, playerDiameter));
                 Gizmos.DrawCube(new Vector3(0, 0, 0), new Vector3(1, 1, 1));
+            }
+        }
+
+        if (DEBUG_lineStarts != null)
+        {
+            Gizmos.color = Color.cyan;
+            Gizmos.matrix = Matrix4x4.identity;
+            for (int i = 0; i < DEBUG_lineEnds.Count; ++i)
+            {
+                Gizmos.DrawLine(DEBUG_lineStarts[i], DEBUG_lineEnds[i]);
             }
         }
     }

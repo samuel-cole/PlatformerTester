@@ -49,6 +49,7 @@ public class WalkCheckerEditor : Editor
         if (GUILayout.Button("Clear Walkable Surfaces"))
         {
             script.RemoveDebugSurfaces();
+            Repaint();
         }
     }
 }
