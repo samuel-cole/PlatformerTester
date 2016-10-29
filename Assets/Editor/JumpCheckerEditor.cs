@@ -38,5 +38,13 @@ public class JumpCheckerEditor : Editor {
             script.TestJumps();
             Repaint();
         }
+
+        if (GUILayout.Button("Clear Jump Checks"))
+        {
+            disableTimer = disableTime;
+            script.Reset();
+            Repaint();
+        }
+        //TODO: perhaps add some form of option here to allow users to select which walkable faces from those attached to this object that jumping should be tested from.
     }
 }

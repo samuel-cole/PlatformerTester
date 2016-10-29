@@ -27,6 +27,11 @@ public class WalkChecker : MonoBehaviour
     List<Vector3> DEBUG_lineStarts = null;
     List<Vector3> DEBUG_lineEnds = null;
 
+    //This isn't used by the WalkChecker at all- it's used by the jump checker, 
+    //however as jumpcheckers need to be set up on each platform that jumping is to be tested from,
+    //it seems like better design to access it from here instead.
+    public float playerJumpHeight;
+
     public void RemoveDebugSurfaces()
     {
         if (walkableFaces != null)
