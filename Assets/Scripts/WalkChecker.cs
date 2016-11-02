@@ -2,36 +2,83 @@
 using System;
 using System.Collections.Generic;
 
+
+/// <summary>
+/// The walk checker is used for finding which faces of which colliders within the scene can be walked on.
+/// The two things that it checks to test if faces are walkable are whether the face is at an angle that the player can walk on,
+/// and whether the face has any colliders above it that would prevent the player from fitting on it.
+/// </summary>
 public class WalkChecker : MonoBehaviour
 {
+
+    /// <summary>
+    /// Collider face is a data-only class that is used for passing information 
+    /// about each face to both the OnGUI render function and the jump checker.
+    /// Each collider face represents a single face of a single collider within the game scene (eg: a box collider will have 6 of these).
+    /// </summary>
     public class ColliderFace
     {
+        /// <summary>
+        /// The collider that this face belongs to.
+        /// </summary>
         public Collider collider;
+        /// <summary>
+        /// The position of the face within the game scene (NOT the position of the collider).
+        /// </summary>
         public Vector3 position;
-        //As this is designed for 2.5d games, only a float is required for rotation (the z axis).
-        //Measured in degrees.
+        /// <summary>
+        /// The rotation of the face, measured in degrees.
+        /// As the walk checker is designed for 2.5d games, only a float is required for rotation (the z axis).
+        /// </summary>
         public float rotation;
+        /// <summary>
+        /// The size of the collider face.
+        /// As the walk checker is designed for 2.5d games, only a float is required for the size of the collider face (the x-axis length).
+        /// </summary>
         public float length;
     }
-    
 
+    /// <summary>
+    /// Reference to the player that will be navigating the scene, 
+    /// used for determining the radius, height, and etc. for where collider faces should be blocked.
+    /// </summary>
     public CharacterController player;
 
+    /// <summary>
+    /// The end result of this class- a list of collider faces that contains each surface that the player is able to walk on.
+    /// </summary>
     public List<ColliderFace> walkableFaces { get; private set; }
+    
+    /// <summary>
+    /// The radius of the player capsule, used while checking the spaces in which the player can fit.
+    /// </summary>
     float playerRadius = 0.5f;
+    /// <summary>
+    /// The diameter of the player capsule, used while checking the spaces in which the player can fit.
+    /// </summary>
     public float playerDiameter { get; private set; }
 
+    /// <summary>
+    /// A layer mask that should be set to contain each layer that the player isn't able to move through,
+    /// used while checking the spaces in which the player can fit.
+    /// </summary>
     [HideInInspector]
     public int collisionLayerMask;
 
     List<Vector3> DEBUG_lineStarts = null;
     List<Vector3> DEBUG_lineEnds = null;
 
-    //This isn't used by the WalkChecker at all- it's used by the jump checker, 
-    //however as jumpcheckers need to be set up on each platform that jumping is to be tested from,
-    //it seems like better design to access it from here instead.
+    /// <summary>
+    /// The height that the player is able to jump.
+    /// This isn't used by the WalkChecker at all- it's used by the jump checker, 
+    /// however as jumpcheckers need to be set up on each platform that jumping is to be tested from,
+    /// it seems like better design to access it from here instead.
+    /// </summary>
     public float playerJumpHeight;
 
+    /// <summary>
+    /// Clears all walkable faces, and hence removes all displays for walkable faces.
+    /// </summary>
     public void RemoveDebugSurfaces()
     {
         if (walkableFaces != null)
@@ -44,6 +91,11 @@ public class WalkChecker : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// The main function within the walkchecker, this iterates through each collider in the scene,
+    /// and calls the other functions to process those colliders.
+    /// The end result of this function is that the walkable faces list will be filled.
+    /// </summary>
     public void DisplayDebugSurfaces()
     {
         if (DEBUG_lineStarts == null)
@@ -100,8 +152,11 @@ public class WalkChecker : MonoBehaviour
         }
     }
 
-    //Checks whether any of the faces of the box passed in as an argument are of a slope that the player can stand on.
-    //Returns a list containing each face that the player can stand on, with each face being represented as the normal vector of that face, multiplied by its distance to the center of that object.
+    /// <summary>
+    /// Checks whether any of the faces of the box passed in as an argument are of a slope that the player can stand on.
+    /// </summary>
+    /// <param name="a_box">The box to be checked for walkable slopes.</param>
+    /// <returns>A list containing each face that the player can stand on, with each face being represented as the normal vector of that face, multiplied by its distance to the center of that object.</returns>
     List<ColliderFace> BoxCheckSlope(BoxCollider a_box)
     {
         List<ColliderFace> returnFaces = new List<ColliderFace>();
@@ -217,9 +272,14 @@ public class WalkChecker : MonoBehaviour
         return returnFaces;
     }
 
-    //Checks whether a face is colliding with anything, and either shortens it or splits it into multiple new faces to ensure that the face doesn't cover any area blocked by objects.
-    //Returns a list of all non-blocked faces.
-    //Known issue: doesn't account for situations in which the entire area above the face is within a collider.
+    /// <summary>
+    /// Checks whether a face is colliding with anything, and either shortens it or splits it
+    /// into multiple new faces to ensure that the face doesn't cover any area blocked by objects.
+    /// Known issue: doesn't account for situations in which the entire area above the face is within a collider.
+    /// Known issue: doesn't properly work in situations in which multiple objects block the same face.
+    /// </summary>
+    /// <param name="a_face">The walkable face to be checked for blocking objects.</param>
+    /// <returns>A list of all non-blocked faces created by the function.</returns>
     List<ColliderFace> CheckCollisionsWithFace(ColliderFace a_face)
     {
         List<ColliderFace> returnFaces = new List<ColliderFace>();
@@ -323,7 +383,14 @@ public class WalkChecker : MonoBehaviour
         return returnFaces;
     }
 
-    //Returns a smaller collider face portion created from part of a collider face.
+    /// <summary>
+    /// Creates a new face object from an existing collider face- 
+    /// this new object should overlap the existing collider face completely, but not be as long.
+    /// </summary>
+    /// <param name="a_face">The face to generate a portion of.</param>
+    /// <param name="a_leftPoint">The world-space x-position of the leftmost point on the new face portion.</param>
+    /// <param name="a_rightPoint">The world-space x-position of the rightmost point on the new face portion.</param>
+    /// <returns>The smaller collider face portion created.</returns>
     ColliderFace GetFacePortion(ColliderFace a_face, float a_leftPoint, float a_rightPoint)
     {
         ColliderFace returnFace = new ColliderFace();
@@ -347,6 +414,9 @@ public class WalkChecker : MonoBehaviour
         return returnFace;
     }
 
+    /// <summary>
+    /// Draws the walkable collider faces.
+    /// </summary>
     public void OnDrawGizmos()
     {
         Gizmos.color = Color.green;
@@ -372,7 +442,12 @@ public class WalkChecker : MonoBehaviour
         }
     }
 
-    //Fix for float equality issues.
+    /// <summary>
+    /// Calculates if two vectors are nearly equal to each other (to prevent float equality issues).
+    /// </summary>
+    /// <param name="a_vec1">The first vector to compare.</param>
+    /// <param name="a_vec2">The second vector to compare.</param>
+    /// <returns>Whether the two vectors are nearly equal.</returns>
     bool NearlyEqual(Vector3 a_vec1, Vector3 a_vec2)
     {
         if ((a_vec1 - a_vec2).sqrMagnitude < 0.01f)
