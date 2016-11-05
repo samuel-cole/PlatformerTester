@@ -36,6 +36,48 @@ public class WalkChecker : MonoBehaviour
         /// As the walk checker is designed for 2.5d games, only a float is required for the size of the collider face (the x-axis length).
         /// </summary>
         public float length;
+
+        /// <summary>
+        /// Get the highest point on this collider face.
+        /// </summary>
+        /// <returns>Returns the highest point on this collider face. In situations in which the collider is flat (multiple highest points),
+        /// the x-value used is the same as the position.</returns>
+        public Vector2 HighestPoint()
+        {
+            float x;
+            if (rotation == 0.0f)
+                x = position.x;
+            else if (rotation > 0.0f)
+                x = position.x + length * -0.5f;
+            else
+                x = position.x + length * 0.5f;
+            
+            float y = position.y + length * 0.5f * Mathf.Sin(Mathf.Abs(rotation));
+
+            return new Vector2(x, y);
+        }
+
+        /// <summary>
+        /// Gets the left-most point on this collider face.
+        /// </summary>
+        /// <returns>Returns the left-most point on this collider face.</returns>
+        public Vector2 LeftMostPoint()
+        {
+            float x = position.x + length * -0.5f;
+            float y = position.y + length * 0.5f * Mathf.Sin(rotation);
+            return new Vector2(x, y);
+        }
+
+        /// <summary>
+        /// Gets the right-most point on this collider face.
+        /// </summary>
+        /// <returns>Returns the right-most point on this collider face.</returns>
+        public Vector2 RightMostPoint()
+        {
+            float x = position.x + length * 0.5f;
+            float y = position.y + length * 0.5f * Mathf.Sin(-rotation);
+            return new Vector2(x, y);
+        }
     }
 
     /// <summary>
