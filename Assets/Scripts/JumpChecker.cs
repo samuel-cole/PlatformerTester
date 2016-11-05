@@ -95,36 +95,71 @@ public class JumpChecker : MonoBehaviour
 
         List<WalkChecker.ColliderFace> returnFaces = new List<WalkChecker.ColliderFace>();
 
+        //Concavity of the parobola defined by this player's jump arc.
+        //Inequality to find space above a parabola: y > a(x - b)^2 + c
+        //To get a: x = ut + 0.5 * gt^2, therefore after 1 second distance = 0.5g
+        //a = (y - c)/(x - b)^2, x != b. Sub in (x:initial + playerspeed, y:initial - 0.5g), to get a = -0.5g / playerspeed^2
+        float parabolaConcavity = -0.5f * walkChecker.playerHorizontalSpeed / (walkChecker.playerHorizontalSpeed * walkChecker.playerHorizontalSpeed);
+        //Derived from equations of motion.
+        float playerJumpSpeed = Mathf.Sqrt(2 * walkChecker.gravityStrength * walkChecker.playerJumpHeight);
+        float xDistToJumpMaxima = (playerJumpSpeed / walkChecker.gravityStrength) * walkChecker.playerHorizontalSpeed;
+
         //Iterate through each attached face, find all of their reachable faces, and then add those reachable faces to the overall list for this game object.
         foreach (WalkChecker.ColliderFace attachedFace in attachedFaces)
         {
             float highestJumpPoint = attachedFace.HighestPoint().y + walkChecker.playerJumpHeight;
+            Vector2 attachedFaceLeftPoint = attachedFace.LeftMostPoint();
+            Vector2 attachedFaceRightPoint = attachedFace.RightMostPoint();
 
             //Start with all faces, then exclude the invalid ones.
-            List<WalkChecker.ColliderFace> reachableFaces = walkChecker.walkableFaces;
-            foreach (WalkChecker.ColliderFace potentialFace in reachableFaces)
+            List<WalkChecker.ColliderFace> reachableFaces = new List<WalkChecker.ColliderFace>(walkChecker.walkableFaces);
+            foreach (WalkChecker.ColliderFace potentialFace in reachableFaces.ToArray())
             {
                 //Any colliders higher than the height of the highest point on this platform plus the player's jump height can be immediately excluded from the search.
-                if (potentialFace.position.y > attachedFace.position.y + walkChecker.playerJumpHeight)
+                if (potentialFace.position.y > highestJumpPoint)
                 {
                     reachableFaces.Remove(potentialFace);
                     continue;
                 }
 
-                //The problem with just using the parabola with its turning point above the leftmost/rightmost point
-                //when determining if a platform is reachable is that in some situations
-                //(those in which the platform is rotated such that you can get further from jumping off a 
-                //higher point rather than the closest one), the player can reach further by jumping off
-                //a point other than the furthest point.
-                
+                Vector2 potentialFaceLeftPoint = potentialFace.LeftMostPoint();
+                Vector2 potentialFaceRightPoint = potentialFace.RightMostPoint();
 
-                //Parabola equation: a(x - b)^2 + c
-                //Turning point is jumpheight above the leftmost/rightmost point. (b = rightmostx/leftmostx, c = pos.y + jumpheight)
-                //a is proportional to the strength of gravity and the player's move speed.
-                //Want to find the y-value at x = potentialFace.leftmostpoint/potentialFace.rightmostpoint (should be the opposite of whether the face is on the left or right)
+                //The below calculations for excluding points above the parabola defined by the player's jump arc are super-naive.
+                //They presume that the best point to jump from is always the edge of the attached platform closest to the potential platform.
+                //They also presume that all platforms within the horizontal range defined by the maxima of the player's jumps from the edges of the attached platform can be reached 
+                //as long as they are lower than the highest point the player can reach, which isn't true in the case of an angled attached platform.
+                //They don't account for the player having a radius- they only account for if the player's center will reach the platform.
+                //TODO: these calculations put the jump turning point above the edge of the attached platform, when they should check how far out the player can get
+                //before they reach the turning point.
+                if (potentialFaceLeftPoint.x > attachedFaceRightPoint.x + xDistToJumpMaxima)
+                {
+                    //Inequality to find space above a parabola: y > a(x - b)^2 + c
+                    //Turning point is jumpheight above the rightmost attached point. (b = rightmostx, c = pos.y + jumpheight)
+                    //Want to find the y-value at x = potentialFace.leftmostpoint
+                    float c = attachedFaceRightPoint.y + walkChecker.playerJumpHeight;
+                    if (potentialFaceLeftPoint.y > parabolaConcavity * Mathf.Pow((potentialFaceLeftPoint.x - (attachedFaceRightPoint.x + xDistToJumpMaxima)), 2) + c)
+                    {
+                        reachableFaces.Remove(potentialFace);
+                        continue;
+                    }
+                }
+                else if (potentialFaceRightPoint.x < attachedFaceLeftPoint.x - xDistToJumpMaxima)
+                {
+                    //Inequality to find space above a parabola: y > a(x - b)^2 + c
+                    //Turning point is jumpheight above the leftmost attached point. (b = leftmostx, c = pos.y + jumpheight)
+                    //Want to find the y-value at x = potentialFace.rightmostpoint
+                    float c = attachedFaceLeftPoint.y + walkChecker.playerJumpHeight;
+                    if (potentialFaceRightPoint.y > parabolaConcavity * Mathf.Pow((potentialFaceRightPoint.x - (attachedFaceLeftPoint.x - xDistToJumpMaxima)), 2) + c)
+                    {
+                        reachableFaces.Remove(potentialFace);
+                        continue;
+                    }
+                }
 
 
                 //TODO: more logic for excluding invalid faces.
+                //This should include logic to account for objects blocking the area in which the player can jump.
 
             }
 
@@ -144,12 +179,16 @@ public class JumpChecker : MonoBehaviour
         {
             Gizmos.color = Color.yellow;
 
+            if (reachableFaces == null)
+            {
+                initialised = false;
+                return;
+            }
+
             for (int i = 0; i < reachableFaces.Count; ++i)
             {
                 Gizmos.matrix = Matrix4x4.TRS(reachableFaces[i].position, Quaternion.Euler(new Vector3(0, 0, reachableFaces[i].rotation)), new Vector3(reachableFaces[i].length, 0.1f, walkChecker.playerDiameter));
-                //This cube is drawn 1 unit higher than the position of the face to prevent z-fighting 
-                //and similar problems from the gizmos used to display walkable faces.
-                Gizmos.DrawCube(new Vector3(0, 1, 0), new Vector3(1, 1, 1));
+                Gizmos.DrawCube(new Vector3(0, 2.5f, 0), new Vector3(1, 5, 1));
             }
         }
     }

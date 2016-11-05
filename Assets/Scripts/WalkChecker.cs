@@ -113,10 +113,26 @@ public class WalkChecker : MonoBehaviour
     /// <summary>
     /// The height that the player is able to jump.
     /// This isn't used by the WalkChecker at all- it's used by the jump checker, 
-    /// however as jumpcheckers need to be set up on each platform that jumping is to be tested from,
+    /// however as jump checkers need to be set up on each platform that jumping is to be tested from,
     /// it seems like better design to access it from here instead.
     /// </summary>
     public float playerJumpHeight;
+
+    /// <summary>
+    /// The horizontal speed of the player in units/second.
+    /// This isn't used by the WalkChecker at all- it's used by the jump checker,
+    /// however as jump checkers need to be set up on each platform that jumping is to be tested from,
+    /// it seems like better design to access it from here instead.
+    /// </summary>
+    public float playerHorizontalSpeed;
+
+    /// <summary>
+    /// The rate of downwards accelleration due to gravity of the player in units/second/second.
+    /// This isn't used by the WalkChecker at all- it's used by the jump checker,
+    /// however as jump checkers need to be set up on each platform that jumping is to be tested from,
+    /// it seems like better design to access it from here instead.
+    /// </summary>
+    public float gravityStrength;
 
     /// <summary>
     /// Clears all walkable faces, and hence removes all displays for walkable faces.
@@ -452,6 +468,8 @@ public class WalkChecker : MonoBehaviour
         float z = a_face.position.z;
 
         returnFace.position = new Vector3(x, y, z);
+
+        returnFace.collider = a_face.collider;
 
         return returnFace;
     }
