@@ -60,7 +60,7 @@ public class WalkChecker : MonoBehaviour
         /// <summary>
         /// Gets the left-most point on this collider face.
         /// </summary>
-        /// <returns>Returns the left-most point on this collider face.</returns>
+        /// <returns>Returns the left-most point on this collider face, in world space.</returns>
         public Vector2 LeftMostPoint()
         {
             float x = position.x + length * -0.5f;
@@ -71,7 +71,7 @@ public class WalkChecker : MonoBehaviour
         /// <summary>
         /// Gets the right-most point on this collider face.
         /// </summary>
-        /// <returns>Returns the right-most point on this collider face.</returns>
+        /// <returns>Returns the right-most point on this collider face, in world space.</returns>
         public Vector2 RightMostPoint()
         {
             float x = position.x + length * 0.5f;
@@ -107,9 +107,6 @@ public class WalkChecker : MonoBehaviour
     [HideInInspector]
     public int collisionLayerMask;
 
-    List<Vector3> DEBUG_lineStarts = null;
-    List<Vector3> DEBUG_lineEnds = null;
-
     /// <summary>
     /// The height that the player is able to jump.
     /// This isn't used by the WalkChecker at all- it's used by the jump checker, 
@@ -141,12 +138,6 @@ public class WalkChecker : MonoBehaviour
     {
         if (walkableFaces != null)
             walkableFaces.Clear();
-
-        if (DEBUG_lineStarts != null)
-        {
-            DEBUG_lineStarts.Clear();
-            DEBUG_lineEnds.Clear();
-        }
     }
 
     /// <summary>
@@ -156,17 +147,6 @@ public class WalkChecker : MonoBehaviour
     /// </summary>
     public void DisplayDebugSurfaces()
     {
-        if (DEBUG_lineStarts == null)
-        {
-            DEBUG_lineStarts = new List<Vector3>();
-            DEBUG_lineEnds = new List<Vector3>();
-        }
-        else
-        {
-            DEBUG_lineStarts.Clear();
-            DEBUG_lineEnds.Clear();
-        }
-
         if (walkableFaces == null)
             walkableFaces = new List<ColliderFace>();
         else
@@ -183,11 +163,13 @@ public class WalkChecker : MonoBehaviour
             return;
         }
 
-        //Instantiate(testObject, transform.position, transform.rotation);
         Collider[] colliders = FindObjectsOfType<Collider>();
         foreach (Collider collider in colliders)
         {
             if (collider.enabled == false)
+                continue;
+
+            if (((1 << collider.gameObject.layer) & collisionLayerMask) == 0)   //If this collider isn't in a collision layer used by the environment.
                 continue;
 
             //Going to have to handle this per collider type- for box collider, just check rotation/scale for walkable area, for mesh, will have to split into triangles?
@@ -205,7 +187,7 @@ public class WalkChecker : MonoBehaviour
             }
             else
             {
-                Debug.Log("The specified mesh type is not yet implemented within the walk checker, skipping collider.");
+                Debug.Log("The specified collider type (" + collider.GetType().Name + ") is not yet implemented within the walk checker, skipping collider.");
             }
         }
     }
@@ -384,10 +366,26 @@ public class WalkChecker : MonoBehaviour
             a_face.collider.enabled = true;
         }
 
-        //This should be changed to check if the collision point is (0, 0, 0), rather than using array length, given that capsule casts
-        //do not behave as specified in the Unity docs- they return a collision at position (0, 0, 0) for situations in which the start
-        //of the trace is in a collider.
-        //if (leftSideCollisions.Length > rightSideCollisions.Length)
+        //Unity doesn't return the raycasts in a meaningful order,
+        //so sort the raycast arrays based on the impact point distance from the start of the raycast.
+        float[] leftSideCollisionKeys = new float[leftSideCollisions.Length];
+        float[] rightSideCollisionKeys = new float[rightSideCollisions.Length];
+        for (int i = 0; i < leftSideCollisions.Length; ++i)
+        {
+            leftSideCollisionKeys[i] = leftSideCollisions[i].distance;
+        }
+        for (int i = 0; i < rightSideCollisions.Length; ++i)
+        {
+            //This code could be done in the previous loop, cutting down on a loop, because leftSideCollisions and rightSideCollisions
+            //*should* always be the same length. For safety reasons (just in case raycasts do some odd behaviour), it isn't.
+            rightSideCollisionKeys[i] = rightSideCollisions[i].distance;
+        }
+        Array.Sort(leftSideCollisionKeys, leftSideCollisions);
+        Array.Sort(rightSideCollisionKeys, rightSideCollisions);
+
+        //This has been changed to check if the collision point is (0, 0, 0), rather than using array length (as specified in my psuedocode),
+        //because capsule casts do not behave as specified in the Unity docs- they return a collision
+        //at position (0, 0, 0) for situations in which the start of the trace is in a collider.
         if (rightSideCollisions.Length > 0 && NearlyEqual(rightSideCollisions[0].point, new Vector3(0, 0, 0)))
         {
             //The right side of the platform is inside another collider.
@@ -488,16 +486,6 @@ public class WalkChecker : MonoBehaviour
                 //I think that the x dimension here should likely just be replaced with a 1, to constrain the area highlighted to the plane that the player can move in.
                 Gizmos.matrix = Matrix4x4.TRS(walkableFaces[i].position, Quaternion.Euler(new Vector3(0, 0, walkableFaces[i].rotation)), new Vector3(walkableFaces[i].length, 0.1f, playerDiameter));
                 Gizmos.DrawCube(new Vector3(0, 0, 0), new Vector3(1, 1, 1));
-            }
-        }
-
-        if (DEBUG_lineStarts != null)
-        {
-            Gizmos.color = Color.cyan;
-            Gizmos.matrix = Matrix4x4.identity;
-            for (int i = 0; i < DEBUG_lineEnds.Count; ++i)
-            {
-                Gizmos.DrawLine(DEBUG_lineStarts[i], DEBUG_lineEnds[i]);
             }
         }
     }

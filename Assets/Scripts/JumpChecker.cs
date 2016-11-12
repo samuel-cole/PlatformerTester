@@ -160,7 +160,7 @@ public class JumpChecker : MonoBehaviour
 
                 //TODO: more logic for excluding invalid faces.
                 //This should include logic to account for objects blocking the area in which the player can jump.
-
+                //Underneath blocked objects, start another parabola curve.
             }
 
             //We've excluded all unreachable faces now, add the remaining reachable faces to the overall list of reachable faces.
